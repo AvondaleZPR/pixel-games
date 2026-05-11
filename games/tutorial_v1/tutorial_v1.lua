@@ -195,6 +195,7 @@ CGameMode.StartGame = function()
 end
 
 CGameMode.SetStage = function(iStageID)
+    CAudio.ResetSync()
     CStages.iCurrentStageID = iStageID
     tGameStats.StageNum = iStageID
     CObjects.Clear()
