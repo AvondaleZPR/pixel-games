@@ -460,6 +460,7 @@ end
 CEffect = {}
 CEffect.tEffects = {}
 CEffect.tCurrentEffectData = {}
+CEffect.tEffectsUseCounter = {}
 
 CEffect.iCurrentEffect = 0
 CEffect.iNextEffect = 0
@@ -521,10 +522,23 @@ CEffect.DrawCurrentEffect = function()
 end
 
 CEffect.NextEffectTimer = function()
-    local iEffectId = CEffect.iLastEffect
-    while iEffectId == CEffect.iLastEffect do
-        iEffectId = math.random(1, #CEffect.tEffects)
+    local tLowEffects = {}
+    local iLowest = 999
+    for iEffectId = 1, #CEffect.tEffects do
+        if not CEffect.tEffectsUseCounter[iEffectId] then CEffect.tEffectsUseCounter[iEffectId] = 0 end
+
+        if CEffect.tEffectsUseCounter[iEffectId] < iLowest then
+            iLowest = CEffect.tEffectsUseCounter[iEffectId]
+            tLowEffects = {}
+            tLowEffects[1] = iEffectId
+        elseif CEffect.tEffectsUseCounter[iEffectId] == iLowest then
+            tLowEffects[#tLowEffects+1] = iEffectId
+        end
     end
+
+    local iEffectId = tLowEffects[math.random(1,#tLowEffects)]
+    CEffect.tEffectsUseCounter[iEffectId] = (CEffect.tEffectsUseCounter[iEffectId] or 0) + 1
+
     --CLog.print("next effect: "..iEffectId)
     --iEffectId = 11
 
