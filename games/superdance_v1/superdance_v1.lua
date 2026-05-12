@@ -533,9 +533,9 @@ CGameMode.SpawnRandomCoin = function()
     local iX = 1
     local iY = 1
     repeat
-        iX = math.random(tGame.iMinX, tGame.iMaxX)
-        iY = math.random(tGame.iMinY, tGame.iMaxY)
-    until tFloor[iX] and tFloor[iX][iY] and tFloor[iX][iY].iColor == CColors.NONE and not tFloor[iX][iY].bDefect
+        iX = math.random(tGame.iMinX+2, tGame.iMaxX-2)
+        iY = math.random(tGame.iMinY+2, tGame.iMaxY-2)
+    until tFloor[iX] and tFloor[iX][iY] and tFloor[iX][iY].iColor == CColors.NONE and not tFloor[iX][iY].bDefect and not tFloor[iX][iY].bClick
 
     if not tConfig.SingleTeam then
         repeat
@@ -685,7 +685,7 @@ CEffects.tSpawnEffect[CGameMode.EFFECT_TYPE_COIN] = function()
 
         iRepCount = iRepCount + 1
         if iRepCount > tGame.Cols then CGameMode.NewEffectType(); return; end
-    until tFloor[CEffects.iCoinX] and tFloor[CEffects.iCoinX][CEffects.iCoinY] and tFloor[CEffects.iCoinX][CEffects.iCoinY].iColor == CColors.NONE and not tFloor[CEffects.iCoinX][CEffects.iCoinY].bDefect
+    until tFloor[CEffects.iCoinX] and tFloor[CEffects.iCoinX][CEffects.iCoinY] and tFloor[CEffects.iCoinX][CEffects.iCoinY].iColor == CColors.NONE and not tFloor[CEffects.iCoinX][CEffects.iCoinY].bDefect and not tFloor[CEffects.iCoinX][CEffects.iCoinY].bClick
 
     CObjects.NewObject(CEffects.iCoinX, CEffects.iCoinY, CObjects.OBJECT_TYPE_COIN, CObjects.OBJECT_SHAPE_TYPE_NONE, CGameMode.GetLeastCoinsPlayer())
     CEffects.iCoinSpawned = CEffects.iCoinSpawned + 1
@@ -707,14 +707,31 @@ end
 ----Pulse
 CEffects.tLoadEffect[CGameMode.EFFECT_TYPE_PULSE] = function()
     CEffects.tPulseShapes = {}
-    CEffects.iPulsePosX = math.random(1, tGame.Cols)
-    CEffects.iPulsePosY = math.random(1, tGame.Rows)
+    
+    local function check(iXIn, iYIn)
+        for iX = iXIn-2, iXIn+2 do
+            for iY = iYIn-2, iYIn+2 do
+                if tFloor[iX] and tFloor[iX][iY] and tFloor[iX][iY].bClick and not tFloor[iX][iY].bDefect then return false; end
+            end
+        end
+
+        return true
+    end
+    local iRepCount = 0
+    repeat
+        CEffects.iPulsePosX = math.random(1, tGame.Cols)
+        CEffects.iPulsePosY = math.random(1, tGame.Rows)
+        iRepCount = iRepCount + 1
+    until check(CEffects.iPulsePosX, CEffects.iPulsePosY) or iRepCount > 10
+
     CEffects.iPulseCount = 0
     CEffects.iPulseTotal = math.random(1,3)
+    CEffects.iPulseShapeType = CObjects.OBJECT_SHAPE_TYPE_CIRC
+    if math.random(1,3) == 2 then CEffects.iPulseShapeType = CObjects.OBJECT_SHAPE_TYPE_RHMB end
 end
 
 CEffects.tSpawnEffect[CGameMode.EFFECT_TYPE_PULSE] = function()
-    CObjects.NewObject(CEffects.iPulsePosX, CEffects.iPulsePosY, CObjects.OBJECT_TYPE_LAVA_EXPANDING_SHAPE, CObjects.OBJECT_SHAPE_TYPE_CIRC, CGameMode.GetLeastCoinsPlayer())
+    CObjects.NewObject(CEffects.iPulsePosX, CEffects.iPulsePosY, CObjects.OBJECT_TYPE_LAVA_EXPANDING_SHAPE, CEffects.iPulseShapeType, CGameMode.GetLeastCoinsPlayer())
 
     CEffects.iPulseCount = CEffects.iPulseCount + 1
 
@@ -833,6 +850,7 @@ CObjects.Paint = function()
         local tObject = CObjects.tObjects.Pop()
         local bRemove = false
         local bClick = false
+        local bPainted = false
         local tClicksPos = {}
 
         local iBright = CObjects.iBright
@@ -843,13 +861,17 @@ CObjects.Paint = function()
 
         if tObject.tShape ~= nil then
             for iPixel = 1, #tObject.tShape do
-                if CObjects.PaintPixel(tObject.iX + tObject.tShape[iPixel].iX, tObject.iY + tObject.tShape[iPixel].iY, CObjects.GetColorForObject(tObject), iBright) then 
+                local bC, bP = CObjects.PaintPixel(tObject.iX + tObject.tShape[iPixel].iX, tObject.iY + tObject.tShape[iPixel].iY, CObjects.GetColorForObject(tObject), iBright)
+                if bC then 
                     bClick = true 
                     tClicksPos[#tClicksPos+1] = {iX = tObject.iX + tObject.tShape[iPixel].iX, iY = tObject.iY + tObject.tShape[iPixel].iY}
                 end
+                if bP then
+                    bPainted = true
+                end
             end
         else
-            bClick = CObjects.PaintPixel(tObject.iX, tObject.iY, CObjects.GetColorForObject(tObject), iBright)
+            bClick, bPainted = CObjects.PaintPixel(tObject.iX, tObject.iY, CObjects.GetColorForObject(tObject), iBright)
         end
 
         if bClick and not tObject.bClicked and not tObject.bCooldown then
@@ -897,23 +919,25 @@ CObjects.Paint = function()
             end
         end
 
-        if not bRemove then
+        if not bRemove and bPainted then
             CObjects.tObjects.Push(tObject)
         end
     end
 end
 
 CObjects.PaintPixel = function(iX, iY, iColor, iBright)
+    local bPainted = false
     if tFloor[iX] and tFloor[iX][iY] then
         tFloor[iX][iY].iColor = iColor
         tFloor[iX][iY].iBright = iBright
+        bPainted = true
 
         if tFloor[iX][iY].bClick and not tFloor[iX][iY].bDefect then
-            return true
+            return true, bPainted
         end
     end
 
-    return false
+    return false, bPainted
 end
 
 CObjects.Tick = function()
@@ -923,9 +947,8 @@ CObjects.Tick = function()
 
         if tObject.iType == CObjects.OBJECT_TYPE_LAVA_EXPANDING_SHAPE and tObject.iShapeType > CObjects.OBJECT_SHAPE_TYPE_NONE then
             tObject.iShapeSize = tObject.iShapeSize + 1
+            if tObject.iShapeType == CObjects.OBJECT_SHAPE_TYPE_RHMB then tObject.iShapeSize = tObject.iShapeSize + 1 end
             tObject.tShape = CObjects.GetShapeForObject(tObject.iShapeType, tObject.iShapeSize)
-
-            bPush = tObject.iShapeSize < tGame.Cols + tGame.Rows
         elseif tObject.iType == CObjects.OBJECT_TYPE_LAVA_STATIC_SHAPE then
             tObject.iX = tObject.iX + tObject.iVelX
             tObject.iY = tObject.iY + tObject.iVelY
